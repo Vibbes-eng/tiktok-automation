@@ -1,3 +1,4 @@
+# requirements.txt - Version corrigée pour Railway
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 websockets==12.0
@@ -9,5 +10,5 @@ pydantic==2.5.0
 python-multipart==0.0.6
 aiofiles==23.2.1
 requests==2.31.0
-python-chromedriver-binary==118.0.5993.70.0
+webdriver-manager==4.0.1
 structlog==23.1.0
