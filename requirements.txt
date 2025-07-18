@@ -1,4 +1,4 @@
-# requirements.txt - Version corrigée pour Railway
+# requirements.txt - Pour vrai scraping TikTok
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 websockets==12.0
@@ -12,3 +12,6 @@ aiofiles==23.2.1
 requests==2.31.0
 webdriver-manager==4.0.1
 structlog==23.1.0
+
+# Dépendances pour Railway/Cloud
+psutil==5.9.6
