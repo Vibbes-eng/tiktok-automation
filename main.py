@@ -1,4 +1,4 @@
-# main.py - Version avec VRAI scraping TikTok
+# main.py - Version avec VRAI scraping TikTok (CORRIGÉ POUR RAILWAY)
 import os
 import logging
 import asyncio
@@ -20,7 +20,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
 
 # Imports pour OpenAI
 import openai
@@ -54,6 +53,7 @@ app.add_middleware(
 PORT = int(os.getenv("PORT", 8000))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+RAILWAY_ENVIRONMENT = os.getenv("RAILWAY_ENVIRONMENT")
 
 # WebSocket manager
 class WebSocketManager:
@@ -80,7 +80,7 @@ class WebSocketManager:
 
 manager = WebSocketManager()
 
-# Classe pour le scraping TikTok réel
+# Classe pour le scraping TikTok réel (ADAPTÉE POUR RAILWAY)
 class TikTokRealScraper:
     def __init__(self, config: dict, websocket_manager: WebSocketManager, session_id: str):
         self.config = config
@@ -107,7 +107,7 @@ class TikTokRealScraper:
         try:
             chrome_options = Options()
             
-            # Options pour Railway/Cloud
+            # Options essentielles pour Railway/Docker
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
@@ -116,7 +116,6 @@ class TikTokRealScraper:
             chrome_options.add_argument("--disable-background-networking")
             chrome_options.add_argument("--disable-sync")
             chrome_options.add_argument("--disable-translate")
-            chrome_options.add_argument("--remote-debugging-port=9222")
             chrome_options.add_argument("--window-size=1920,1080")
             
             # User agent pour éviter la détection
@@ -125,8 +124,24 @@ class TikTokRealScraper:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option("useAutomationExtension", False)
             
-            # Configuration du service avec webdriver-manager
-            service = Service(ChromeDriverManager().install())
+            # Configuration spécifique pour Railway
+            if RAILWAY_ENVIRONMENT:
+                logger.info("🚂 Configuration Railway détectée")
+                # Utiliser le chromium installé par nixpacks
+                chrome_options.binary_location = "/usr/bin/chromium"
+                
+                # Service avec le chromedriver de nixpacks
+                service = Service("/usr/bin/chromedriver")
+                
+                # Options supplémentaires pour Railway
+                chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+                chrome_options.add_argument("--disable-web-security")
+                chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+            else:
+                # Configuration locale avec webdriver-manager
+                logger.info("💻 Configuration locale")
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
             
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             
@@ -138,12 +153,16 @@ class TikTokRealScraper:
             
         except Exception as e:
             logger.error(f"❌ Erreur configuration driver: {e}")
+            logger.error(f"Chrome binary location: {chrome_options.binary_location if hasattr(chrome_options, 'binary_location') else 'default'}")
             return False
     
     async def extract_video_details(self):
         """Extraire les détails de la vidéo (adapté du script original)"""
         try:
             await self.send_progress("video_extraction", 30, "Extraction des informations vidéo...")
+            
+            # Attendre un peu pour le chargement complet
+            await asyncio.sleep(2)
             
             # Extraire le titre
             video_title = "Titre non trouvé"
@@ -222,7 +241,7 @@ class TikTokRealScraper:
                     comments_button = WebDriverWait(self.driver, 10).until(
                         EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='comment-icon']"))
                     )
-                    comments_button.click()
+                    self.driver.execute_script("arguments[0].click();", comments_button)
                     await self.send_progress("comments_opened", 55, "Section commentaires ouverte")
                     await asyncio.sleep(2)
                 except TimeoutException:
@@ -535,7 +554,8 @@ async def root():
         "status": "running",
         "version": "2.0.0",
         "environment": ENVIRONMENT,
-        "scraping": "RÉEL (non simulé)"
+        "scraping": "RÉEL (non simulé)",
+        "railway": bool(RAILWAY_ENVIRONMENT)
     }
 
 @app.get("/health")
@@ -545,8 +565,74 @@ async def health_check():
         "openai_configured": bool(OPENAI_API_KEY),
         "environment": ENVIRONMENT,
         "scraping_mode": "REAL",
+        "railway": bool(RAILWAY_ENVIRONMENT),
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/health/detailed")
+async def health_detailed():
+    """Health check détaillé pour monitoring"""
+    try:
+        import psutil
+        import platform
+        
+        # Test Chrome si possible
+        chrome_status = "unknown"
+        try:
+            from selenium import webdriver
+            options = Options()
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            
+            if RAILWAY_ENVIRONMENT:
+                options.binary_location = "/usr/bin/chromium"
+                service = Service("/usr/bin/chromedriver")
+            else:
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+                
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.quit()
+            chrome_status = "operational"
+        except Exception as e:
+            logger.error(f"Chrome test failed: {e}")
+            chrome_status = f"error: {str(e)}"
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "service": "TikTok Automation API",
+            "version": "2.0.0",
+            "environment": "railway" if RAILWAY_ENVIRONMENT else "local",
+            "system": {
+                "platform": platform.system(),
+                "python_version": platform.python_version(),
+                "cpu_percent": psutil.cpu_percent(interval=1),
+                "memory_percent": psutil.virtual_memory().percent
+            },
+            "services": {
+                "api": "operational",
+                "chrome": chrome_status,
+                "openai": "configured" if OPENAI_API_KEY else "not configured",
+                "websocket": "operational"
+            },
+            "endpoints": [
+                "/health",
+                "/health/detailed", 
+                "/ws/{session_id}",
+                "/api/scraping/start/{session_id}",
+                "/api/responses/generate/{session_id}",
+                "/api/responses/validate",
+                "/api/export/excel/{session_id}"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -576,6 +662,7 @@ async def start_real_scraping(session_id: str, config: dict, background_tasks: B
         
         logger.info(f"🚀 Démarrage du VRAI scraping pour session: {session_id}")
         logger.info(f"🎯 URL: {config['tiktok_url']}")
+        logger.info(f"🚂 Railway: {bool(RAILWAY_ENVIRONMENT)}")
         
         # Créer le scraper et lancer en arrière-plan
         scraper = TikTokRealScraper(config, manager, session_id)
@@ -585,7 +672,8 @@ async def start_real_scraping(session_id: str, config: dict, background_tasks: B
             "message": "VRAI scraping TikTok démarré",
             "session_id": session_id,
             "status": "started",
-            "scraping_mode": "REAL"
+            "scraping_mode": "REAL",
+            "environment": "railway" if RAILWAY_ENVIRONMENT else "local"
         }
         
     except Exception as e:
