@@ -1,0 +1,80 @@
+# nixpacks.toml - Configuration CORRIGÉE pour Railway avec Chrome
+[phases.setup]
+# Installation via nixpkgs (plus fiable que apt)
+nixPkgs = [
+    "chromium",           # Navigateur Chromium
+    "chromium-chromedriver", # ChromeDriver (nom corrigé)
+    "xvfb-run",          # X Virtual Framebuffer
+    "python311",         # Python 3.11
+    "python311Packages.pip"
+]
+
+# Packages APT supplémentaires pour les dépendances Chrome
+aptPkgs = [
+    "wget",
+    "gnupg",
+    "unzip",
+    "xvfb",
+    "libglib2.0-0",
+    "libnss3",
+    "libgconf-2-4",
+    "libfontconfig1",
+    "libxss1",
+    "libappindicator3-1",
+    "libasound2",
+    "libatk-bridge2.0-0",
+    "libgtk-3-0",
+    "libnspr4",
+    "libx11-xcb1",
+    "libxcomposite1",
+    "libxcursor1",
+    "libxdamage1",
+    "libxi6",
+    "libxtst6",
+    "libxrandr2",
+    "libgbm1",
+    "libxkbcommon0",
+    "libpangocairo-1.0-0",
+    "libatspi2.0-0",
+    "libdrm2",
+    "libxrandr2",
+    "libxss1",
+    "libxcomposite1",
+    "libasound2"
+]
+
+[phases.setup.nixPkgsArchive]
+# Utiliser une version stable de nixpkgs
+archive = "22.11"
+
+[phases.build]
+cmds = [
+    "pip install -r requirements.txt",
+    # Vérifier l'installation de Chrome et ChromeDriver
+    "which chromium || echo 'Chromium not found'",
+    "which chromedriver || echo 'ChromeDriver not found'",
+    "ls -la /usr/bin/chrom* || echo 'No chrome binaries found'",
+    # Créer des liens symboliques si nécessaire
+    "ln -sf /usr/bin/chromium /usr/bin/google-chrome || true",
+    "ln -sf /usr/bin/chromedriver /usr/local/bin/chromedriver || true",
+    # Vérifier les permissions
+    "chmod +x /usr/bin/chromium || true",
+    "chmod +x /usr/bin/chromedriver || true"
+]
+
+[start]
+# Commande de démarrage avec Xvfb pour l'affichage virtuel
+cmd = "xvfb-run -a --server-args='-screen 0 1920x1080x24 -ac -nolisten tcp -dpi 96 +extension GLX' uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+[variables]
+# Variables d'environnement pour Chrome
+CHROME_BIN = "/usr/bin/chromium"
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
+DISPLAY = ":99"
+CHROME_NO_SANDBOX = "true"
+CHROME_DISABLE_GPU = "true"
+RAILWAY_ENVIRONMENT = "true"
+
+# Variables pour éviter les timeouts
+CHROME_TIMEOUT = "30000"
+PAGE_LOAD_TIMEOUT = "30000"
