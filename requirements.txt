@@ -1,0 +1,5 @@
+# requirements_minimal.txt - Dépendances essentielles seulement
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+selenium==4.15.2
+requests==2.31.0
