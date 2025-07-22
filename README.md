@@ -1,2 +1,0 @@
-# tiktok-automation
-tiktok-automation
